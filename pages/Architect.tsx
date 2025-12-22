@@ -1,24 +1,31 @@
 import React, { useMemo, useState } from "react";
 
-type ApiSuccess = { text: string };
-type ApiError = { error: string };
+type ApiSuccess = {
+  text?: string;
+  result?: string;
+  output?: string;
+};
+
+type ApiError = {
+  error?: string;
+  message?: string;
+};
 
 const Architect: React.FC = () => {
   const [problem, setProblem] = useState("");
-  const [result, setResult] = useState<string>("");
-  const [error, setError] = useState<string>("");
   const [loading, setLoading] = useState(false);
+  const [result, setResult] = useState("");
+  const [error, setError] = useState("");
 
-  const canSubmit = useMemo(() => problem.trim().length > 0 && !loading, [problem, loading]);
+  const canSubmit = useMemo(() => problem.trim().length >= 10 && !loading, [problem, loading]);
 
-  const onSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const run = async () => {
     setError("");
     setResult("");
 
-    const trimmed = problem.trim();
-    if (!trimmed) {
-      setError("Please describe what you want the Architect to analyze.");
+    const prompt = problem.trim();
+    if (prompt.length < 10) {
+      setError("Add a little more detail (at least 10 characters).");
       return;
     }
 
@@ -27,116 +34,94 @@ const Architect: React.FC = () => {
       const res = await fetch("/api/architect", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ problem: trimmed }),
+        body: JSON.stringify({ problem: prompt }),
       });
 
-      const data = (await res.json()) as ApiSuccess | ApiError;
+      const data = (await res.json().catch(() => ({}))) as ApiSuccess & ApiError;
 
       if (!res.ok) {
-        setError("error" in data ? data.error : "Request failed");
-        return;
+        throw new Error(data.error || data.message || `Request failed (${res.status})`);
       }
 
-      if (!("text" in data) || typeof data.text !== "string") {
-        setError("Unexpected response format from /api/architect");
-        return;
+      const text = data.text || data.result || data.output || "";
+      if (!text) {
+        throw new Error("API returned no text.");
       }
 
-      setResult(data.text);
-    } catch (err: any) {
-      setError(err?.message || "Network error");
+      setResult(text);
+    } catch (e: any) {
+      setError(e?.message || "Something went wrong.");
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div style={{ maxWidth: 920, margin: "0 auto", padding: "32px 16px" }}>
-      <h1 style={{ fontSize: 28, marginBottom: 8 }}>Architect</h1>
-      <p style={{ opacity: 0.8, marginTop: 0, marginBottom: 20 }}>
-        Describe what you want analyzed. This page calls <code>/api/architect</code>.
+    <div style={{ maxWidth: 960, margin: "0 auto", padding: "32px 20px" }}>
+      <h1 style={{ fontSize: 36, marginBottom: 8 }}>Architect</h1>
+      <p style={{ opacity: 0.8, marginTop: 0, marginBottom: 18 }}>
+        Describe a product or workflow problem. I will return a structured diagnosis and directional solution.
       </p>
 
-      <form onSubmit={onSubmit} style={{ display: "grid", gap: 12 }}>
-        <textarea
-          value={problem}
-          onChange={(e) => setProblem(e.target.value)}
-          placeholder="Example: Diagnose why my homepage converts poorly and suggest a revised structure."
-          rows={8}
+      <label style={{ display: "block", fontWeight: 600, marginBottom: 8 }}>What are we diagnosing?</label>
+      <textarea
+        value={problem}
+        onChange={(e) => setProblem(e.target.value)}
+        placeholder="Example: Our homepage gets traffic but almost nobody books a call. The pricing page has high dropoff. We are not sure why."
+        rows={7}
+        style={{
+          width: "100%",
+          padding: 14,
+          borderRadius: 12,
+          border: "1px solid rgba(0,0,0,0.15)",
+          fontSize: 16,
+          resize: "vertical",
+        }}
+      />
+
+      <div style={{ display: "flex", gap: 12, alignItems: "center", marginTop: 14 }}>
+        <button
+          onClick={run}
+          disabled={!canSubmit}
           style={{
-            width: "100%",
-            padding: 12,
-            borderRadius: 10,
-            border: "1px solid rgba(0,0,0,0.15)",
-            fontSize: 14,
-            lineHeight: 1.4,
-          }}
-        />
-
-        <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-          <button
-            type="submit"
-            disabled={!canSubmit}
-            style={{
-              padding: "10px 14px",
-              borderRadius: 10,
-              border: "none",
-              cursor: canSubmit ? "pointer" : "not-allowed",
-              opacity: canSubmit ? 1 : 0.6,
-            }}
-          >
-            {loading ? "Generating..." : "Generate"}
-          </button>
-
-          <button
-            type="button"
-            onClick={() => {
-              setProblem("");
-              setResult("");
-              setError("");
-            }}
-            disabled={loading}
-            style={{
-              padding: "10px 14px",
-              borderRadius: 10,
-              border: "1px solid rgba(0,0,0,0.15)",
-              background: "transparent",
-              cursor: loading ? "not-allowed" : "pointer",
-              opacity: loading ? 0.6 : 1,
-            }}
-          >
-            Clear
-          </button>
-        </div>
-      </form>
-
-      {error ? (
-        <div
-          style={{
-            marginTop: 16,
-            padding: 12,
-            borderRadius: 10,
-            background: "rgba(255,0,0,0.06)",
-            border: "1px solid rgba(255,0,0,0.2)",
-            whiteSpace: "pre-wrap",
+            padding: "12px 16px",
+            borderRadius: 12,
+            border: "none",
+            cursor: canSubmit ? "pointer" : "not-allowed",
+            opacity: canSubmit ? 1 : 0.6,
+            fontWeight: 700,
           }}
         >
-          {error}
+          {loading ? "Running..." : "Generate"}
+        </button>
+
+        <span style={{ opacity: 0.7 }}>
+          Tip: include the user goal, where they drop off, and what you have already tried.
+        </span>
+      </div>
+
+      {error ? (
+        <div style={{ marginTop: 16, padding: 12, borderRadius: 12, background: "rgba(255,0,0,0.06)" }}>
+          <strong>Error:</strong> {error}
         </div>
       ) : null}
 
       {result ? (
-        <div
-          style={{
-            marginTop: 16,
-            padding: 16,
-            borderRadius: 12,
-            border: "1px solid rgba(0,0,0,0.15)",
-            whiteSpace: "pre-wrap",
-            lineHeight: 1.5,
-          }}
-        >
-          {result}
+        <div style={{ marginTop: 18 }}>
+          <h2 style={{ fontSize: 22, marginBottom: 10 }}>Output</h2>
+          <pre
+            style={{
+              whiteSpace: "pre-wrap",
+              padding: 16,
+              borderRadius: 12,
+              border: "1px solid rgba(0,0,0,0.12)",
+              lineHeight: 1.5,
+              fontSize: 15,
+              overflowX: "auto",
+            }}
+          >
+            {result}
+          </pre>
         </div>
       ) : null}
     </div>
@@ -144,4 +129,6 @@ const Architect: React.FC = () => {
 };
 
 export default Architect;
+
+    
 
