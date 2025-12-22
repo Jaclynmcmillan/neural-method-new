@@ -17,7 +17,10 @@ const Architect: React.FC = () => {
   const [result, setResult] = useState("");
   const [error, setError] = useState("");
 
-  const canSubmit = useMemo(() => problem.trim().length >= 10 && !loading, [problem, loading]);
+  const canSubmit = useMemo(
+    () => problem.trim().length >= 10 && !loading,
+    [problem, loading]
+  );
 
   const run = async () => {
     setError("");
@@ -63,7 +66,10 @@ const Architect: React.FC = () => {
         Describe a product or workflow problem. I will return a structured diagnosis and directional solution.
       </p>
 
-      <label style={{ display: "block", fontWeight: 600, marginBottom: 8 }}>What are we diagnosing?</label>
+      <label style={{ display: "block", fontWeight: 600, marginBottom: 8 }}>
+        What are we diagnosing
+      </label>
+
       <textarea
         value={problem}
         onChange={(e) => setProblem(e.target.value)}
@@ -129,6 +135,3 @@ const Architect: React.FC = () => {
 };
 
 export default Architect;
-
-    
-
